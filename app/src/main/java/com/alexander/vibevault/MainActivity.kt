@@ -25,12 +25,24 @@ class MainActivity : ComponentActivity() {
             VibeVaultTheme {
                 val navController = rememberNavController()
                 NavHost(navController = navController, startDestination = Routes.HOME) {
-                    composable(Routes.HOME) { HomeScreen(navController) }
+                    composable(Routes.HOME) {
+                        HomeScreen(
+                            viewModel = viewModel<HomeViewModel>(factory = factory),
+                            onAddEntry = { navController.navigate(Routes.ADD_ENTRY) },
+                            onOpenStats = { navController.navigate(Routes.STATS) }
+                        )
+                    }
                     composable(Routes.ADD_ENTRY) {
-                        AddEntryScreen(viewModel<AddEntryViewModel>(factory = factory), navController)
+                        AddEntryScreen(
+                            viewModel = viewModel<AddEntryViewModel>(factory = factory),
+                            onDone = { navController.navigateUp() }
+                        )
                     }
                     composable(Routes.STATS) {
-                        StatsScreen(viewModel<StatsViewModel>(factory = factory))
+                        StatsScreen(
+                            viewModel = viewModel<StatsViewModel>(factory = factory),
+                            onBack = { navController.navigateUp() }
+                        )
                     }
                 }
             }
