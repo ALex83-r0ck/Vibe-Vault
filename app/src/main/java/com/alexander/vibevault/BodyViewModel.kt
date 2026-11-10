@@ -34,10 +34,12 @@ class BodyViewModel(
     val uiState: StateFlow<BodyUiState> = combine(
         repository.getAllEntries(),
         settings.pkParameters,
+        settings.activePouch,
+        settings.pouchTargetMinutes,
         TimeTicker.minutes()
-    ) { entries, params, now ->
+    ) { entries, params, active, target, now ->
         val model = NicotineModel(params)
-        val doses = entries.toDoses(now)
+        val doses = entries.toDoses(now, active?.entryId, target)
         BodyUiState(
             isLoading = false,
             now = now,

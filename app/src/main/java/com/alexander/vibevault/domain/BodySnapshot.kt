@@ -15,11 +15,29 @@ data class BodySnapshot(
 
 data class CurvePoint(val time: LocalDateTime, val nicotineNgPerMl: Double)
 
-fun List<ConsumptionEntry>.toDoses(now: LocalDateTime): List<Dose> {
+/**
+ * Einträge → Dosen fürs Modell.
+ * - mit gespeicherter Dauer: Aufnahme endet nach dieser Dauer
+ * - aktiver Pouch (Timer läuft): Prognose geht davon aus, dass er zur Zieldauer rauskommt
+ *   (oder sofort, wenn die schon überschritten ist)
+ * - ältere Einträge ohne Dauer: vollständige Aufnahme
+ */
+fun List<ConsumptionEntry>.toDoses(
+    now: LocalDateTime,
+    activeEntryId: Int? = null,
+    targetMinutes: Int = 30
+): List<Dose> {
     val oldest = now.minus(NicotineModel.RELEVANT_HISTORY)
     return asSequence()
         .filter { it.timestamp.isAfter(oldest) && !it.timestamp.isAfter(now) }
-        .map { Dose(it.timestamp, it.nicotineStrength.toDouble()) }
+        .map { entry ->
+            val removedAt = when {
+                entry.durationMinutes != null -> entry.timestamp.plusMinutes(entry.durationMinutes.toLong())
+                entry.id == activeEntryId -> maxOf(now, entry.timestamp.plusMinutes(targetMinutes.toLong()))
+                else -> null
+            }
+            Dose(entry.timestamp, entry.nicotineStrength.toDouble(), removedAt)
+        }
         .toList()
 }
 

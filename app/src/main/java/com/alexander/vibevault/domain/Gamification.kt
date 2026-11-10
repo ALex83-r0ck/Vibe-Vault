@@ -70,9 +70,19 @@ object Gamification {
         return previousWeek > 0f && lastWeek < previousWeek
     }
 
-    fun achievements(entries: List<ConsumptionEntry>, limitMg: Float, today: LocalDate): List<Achievement> {
+    /** Pouches, die innerhalb der Zieldauer herausgenommen wurden. */
+    fun onTimeRemovals(entries: List<ConsumptionEntry>, targetMinutes: Int): Int =
+        entries.count { it.durationMinutes != null && it.durationMinutes <= targetMinutes }
+
+    fun achievements(
+        entries: List<ConsumptionEntry>,
+        limitMg: Float,
+        today: LocalDate,
+        targetMinutes: Int = 30
+    ): List<Achievement> {
         val totals = dailyTotals(entries)
         val best = bestStreak(totals, limitMg, today)
+        val onTime = onTimeRemovals(entries, targetMinutes)
 
         fun streakAchievement(id: String, emoji: String, title: String, days: Int) = Achievement(
             id = id,
@@ -100,6 +110,14 @@ object Gamification {
                 title = "Nikotinfrei",
                 description = "Einen ganzen Tag ohne Nikotin geschafft",
                 unlocked = hasNicotineFreeDay(totals, today)
+            ),
+            Achievement(
+                id = "on_time_10",
+                emoji = "⏱️",
+                title = "Pünktlich raus",
+                description = "10 Pouches innerhalb deiner Zieldauer ($targetMinutes min) rausgenommen",
+                unlocked = onTime >= 10,
+                progress = "${minOf(onTime, 10)}/10"
             ),
             Achievement(
                 id = "reduced_week",

@@ -20,6 +20,13 @@ object Routes {
 }
 
 class MainActivity : ComponentActivity() {
+    override fun onResume() {
+        super.onResume()
+        // Falls inzwischen "Wecker & Erinnerungen" erlaubt wurde: laufenden Timer pünktlich einplanen
+        AppModule.initialize(applicationContext)
+        AppModule.providePouchTimer().rescheduleIfActive()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)

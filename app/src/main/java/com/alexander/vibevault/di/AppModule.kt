@@ -10,29 +10,44 @@ import com.alexander.vibevault.HomeViewModel
 import com.alexander.vibevault.StatsViewModel
 import com.alexander.vibevault.data.ConsumptionRepository
 import com.alexander.vibevault.data.LabelScanner
+import com.alexander.vibevault.data.PouchTimer
 import com.alexander.vibevault.data.SettingsRepository
 import com.alexander.vibevault.data.VibeVaultDatabase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 object AppModule {
     private lateinit var repository: ConsumptionRepository
     private lateinit var settings: SettingsRepository
     private lateinit var labelScanner: LabelScanner
+    private lateinit var pouchTimer: PouchTimer
 
-    /** Idempotent: wird bei jedem Activity-Start aufgerufen, legt die Instanzen aber nur einmal an. */
+    /**
+     * Für Schreibvorgänge, die das Schließen eines Screens überleben müssen
+     * (viewModelScope wird beim Verlassen des Screens abgebrochen).
+     */
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /** Idempotent: wird bei jedem Activity-Start und vom Timer-Receiver aufgerufen. */
+    @Synchronized
     fun initialize(context: Context) {
         if (::repository.isInitialized) return
         val appContext = context.applicationContext
         repository = ConsumptionRepository(VibeVaultDatabase.getDatabase(appContext))
         settings = SettingsRepository(appContext)
         labelScanner = LabelScanner(appContext)
+        pouchTimer = PouchTimer(appContext, repository, settings)
     }
+
+    fun providePouchTimer(): PouchTimer = pouchTimer
 
     fun provideViewModelFactory(): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T = when (modelClass) {
-            HomeViewModel::class.java -> HomeViewModel(repository, settings)
-            AddEntryViewModel::class.java -> AddEntryViewModel(repository, labelScanner)
-            StatsViewModel::class.java -> StatsViewModel(repository, settings)
+            HomeViewModel::class.java -> HomeViewModel(repository, settings, pouchTimer, appScope)
+            AddEntryViewModel::class.java -> AddEntryViewModel(repository, settings, labelScanner, pouchTimer, appScope)
+            StatsViewModel::class.java -> StatsViewModel(repository, settings, pouchTimer)
             AchievementsViewModel::class.java -> AchievementsViewModel(repository, settings)
             BodyViewModel::class.java -> BodyViewModel(repository, settings)
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

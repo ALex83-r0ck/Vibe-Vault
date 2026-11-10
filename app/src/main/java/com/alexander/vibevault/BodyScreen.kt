@@ -149,7 +149,9 @@ fun BodyScreen(viewModel: BodyViewModel, onBack: () -> Unit) {
                         text = "Jeder Pouch wird als Dosis behandelt: Nikotingehalt × aufgenommener Anteil. " +
                             "Daraus berechnet ein pharmakokinetisches Ein-Kompartiment-Modell, wie das Nikotin " +
                             "über die Mundschleimhaut ins Blut gelangt (Maximum nach ≈ 50 min) und mit einer " +
-                            "Halbwertszeit von ≈ 2 h abgebaut wird. Mehrere Pouches werden aufaddiert. Den " +
+                            "Halbwertszeit von ≈ 2 h abgebaut wird. Mit dem Timer zählt die echte Nutzungsdauer: " +
+                            "Nach dem Herausnehmen wird nichts mehr aufgenommen (nach 20 min ≈ 63 %, 30 min ≈ 78 %, " +
+                            "60 min ≈ 95 % des möglichen Nikotins). Mehrere Pouches werden aufaddiert. Den " +
                             "Blutspiegel liefert das Verteilungsvolumen (Nikotin 2,6 L/kg, Cotinin 0,85 L/kg).\n\n" +
                             "Aus Pouches werden je nach Produkt etwa 24–59 % des Nikotins herausgelöst; ein Teil " +
                             "davon wird verschluckt und in der Leber abgebaut, bevor es ins Blut kommt. Darum ist " +

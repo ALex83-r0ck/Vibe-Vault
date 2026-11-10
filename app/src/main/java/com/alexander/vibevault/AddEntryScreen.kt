@@ -1,7 +1,27 @@
 package com.alexander.vibevault
 
+import android.Manifest
 import android.content.ActivityNotFoundException
 import android.net.Uri
+import android.content.Intent
+import android.os.Build
+import android.provider.Settings
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.alexander.vibevault.di.AppModule
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Switch
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import com.alexander.vibevault.data.PouchTimer
+import com.alexander.vibevault.domain.StrengthSource
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -39,6 +59,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.alexander.vibevault.ui.VibeScaffold
 import com.alexander.vibevault.ui.formatMg
+import com.alexander.vibevault.ui.formatMgValue
 import com.alexander.vibevault.ui.parseMg
 
 @Composable
@@ -54,6 +75,12 @@ fun AddEntryScreen(viewModel: AddEntryViewModel, onDone: () -> Unit) {
     }
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let(viewModel::scan)
+    }
+
+    val targetMinutes by viewModel.pouchTargetMinutes.collectAsState()
+    val context = LocalContext.current
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        if (viewModel.save()) onDone()
     }
 
     val showStrengthError = triedToSave && parseMg(viewModel.strengthInput) == null
@@ -101,7 +128,12 @@ fun AddEntryScreen(viewModel: AddEntryViewModel, onDone: () -> Unit) {
                             modifier = Modifier.weight(1f)
                         ) { Text("Galerie") }
                     }
-                    ScanFeedback(scanState, cameraMissing)
+                    ScanFeedback(
+                        scanState,
+                        cameraMissing,
+                        onPickStrength = { viewModel.strengthInput = formatMgValue(it) },
+                        onReset = viewModel::resetScan
+                    )
                 }
             }
 
@@ -137,10 +169,24 @@ fun AddEntryScreen(viewModel: AddEntryViewModel, onDone: () -> Unit) {
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
+            TimerSection(
+                enabled = viewModel.timerEnabled,
+                onEnabledChange = { viewModel.timerEnabled = it },
+                targetMinutes = targetMinutes,
+                onTargetChange = viewModel::setPouchTarget
+            )
             Button(
                 onClick = {
                     triedToSave = true
-                    if (viewModel.save()) onDone()
+                    if (parseMg(viewModel.strengthInput) == null) return@Button
+                    if (viewModel.timerEnabled && !PouchTimer.canPostNotifications(context) &&
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                    ) {
+                        // Ohne Erlaubnis läuft der Timer trotzdem in der App, nur ohne Benachrichtigung
+                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else if (viewModel.save()) {
+                        onDone()
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -153,8 +199,93 @@ fun AddEntryScreen(viewModel: AddEntryViewModel, onDone: () -> Unit) {
     }
 }
 
+private val targetOptions = listOf(15, 20, 30, 45, 60)
+
 @Composable
-private fun ScanFeedback(state: ScanState, cameraMissing: Boolean) {
+private fun TimerSection(
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
+    targetMinutes: Int,
+    onTargetChange: (Int) -> Unit
+) {
+    Card(
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("⏱️ Timer starten", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Erinnert dich nach $targetMinutes min, den Pouch rauszunehmen. " +
+                            "Kürzer drin = weniger Nikotin.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                Switch(checked = enabled, onCheckedChange = onEnabledChange)
+            }
+            if (enabled) {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    items(targetOptions) { minutes ->
+                        FilterChip(
+                            selected = minutes == targetMinutes,
+                            onClick = { onTargetChange(minutes) },
+                            label = { Text("$minutes min") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.secondary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onSecondary
+                            )
+                        )
+                    }
+                }
+                ExactAlarmHint()
+            }
+        }
+    }
+}
+
+/** Hinweis + Knopf, falls Android die Erinnerung sonst verspätet zustellen darf. */
+@Composable
+private fun ExactAlarmHint() {
+    val context = LocalContext.current
+    val timer = remember { AppModule.providePouchTimer() }
+    var onTime by remember { mutableStateOf(timer.canRemindOnTime()) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) onTime = timer.canRemindOnTime()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    if (onTime || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+
+    Column(modifier = Modifier.padding(top = 8.dp)) {
+        Text(
+            "⚠️ Ohne „Wecker & Erinnerungen“ darf Android die Erinnerung bis zu 10 min später schicken.",
+            style = MaterialTheme.typography.bodySmall
+        )
+        TextButton(
+            onClick = {
+                context.startActivity(
+                    Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}"))
+                )
+            },
+            contentPadding = PaddingValues(0.dp)
+        ) { Text("Pünktliche Erinnerung erlauben") }
+    }
+}
+
+@Composable
+private fun ScanFeedback(
+    state: ScanState,
+    cameraMissing: Boolean,
+    onPickStrength: (Float) -> Unit,
+    onReset: () -> Unit
+) {
     val textColor = MaterialTheme.colorScheme.onPrimaryContainer
     when {
         cameraMissing -> Text("Keine Kamera-App gefunden – nutze „Galerie“.", color = MaterialTheme.colorScheme.error)
@@ -172,10 +303,88 @@ private fun ScanFeedback(state: ScanState, cameraMissing: Boolean) {
             val message = when {
                 r.strengthMg != null && r.brand != null -> "✅ Erkannt: ${r.brand}, ${formatMg(r.strengthMg)} – bitte kurz prüfen."
                 r.strengthMg != null -> "✅ ${formatMg(r.strengthMg)} erkannt. Marke bitte selbst eintragen."
+                r.perGramMg != null && r.brand != null -> "Marke „${r.brand}“ erkannt."
+                r.perGramMg != null -> "Marke bitte selbst eintragen."
                 r.brand != null -> "Marke „${r.brand}“ erkannt, aber keine mg-Angabe pro Pouch. Bitte Stärke eintragen."
                 else -> "Kein passender Text gefunden. Achte darauf, dass die mg-Angabe gut lesbar ist."
             }
-            Text(message, style = MaterialTheme.typography.bodySmall, color = if (r.strengthMg != null) textColor else Color.Unspecified)
+            val hint = when (r.strengthSource) {
+                StrengthSource.COMPUTED -> "Berechnet aus ${r.computation}."
+                StrengthSource.UNQUALIFIED -> "Unsicher: mg-Angabe ohne „pro Pouch“ gefunden."
+                else -> null
+            }
+            var showRaw by rememberSaveable { mutableStateOf(false) }
+            Column {
+                Text(message, style = MaterialTheme.typography.bodySmall, color = if (r.strengthMg != null) textColor else Color.Unspecified)
+                if (hint != null) Text(hint, style = MaterialTheme.typography.labelSmall, color = textColor)
+                if (r.perGramMg != null && r.strengthSource != StrengthSource.COMPUTED) {
+                    PerGramHelper(r.perGramMg, onPickStrength)
+                }
+                val sure = r.strengthSource == StrengthSource.PER_POUCH || r.strengthSource == StrengthSource.COMPUTED
+                if (!sure) {
+                    Text(
+                        "💡 Tipp: Scanne auch die Rückseite/Unterseite – dort steht oft Nettogewicht und Anzahl. " +
+                            "Die Fotos werden zusammen ausgewertet.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = textColor,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+                if (state.pages > 1) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "📄 ${state.pages} Fotos zusammen ausgewertet",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = textColor,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = onReset) { Text("Neu anfangen") }
+                    }
+                }
+                TextButton(onClick = { showRaw = !showRaw }, contentPadding = PaddingValues(0.dp)) {
+                    Text(if (showRaw) "Erkannten Text ausblenden" else "Erkannten Text anzeigen")
+                }
+                if (showRaw) {
+                    Text(
+                        text = state.lines.joinToString("\n") { it.text }.ifBlank { "(kein Text)" },
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                        color = textColor
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Typische Pouch-Gewichte: slim ≈ 0,5–0,7 g, normal ≈ 0,8–1 g. */
+private val TYPICAL_POUCH_WEIGHTS = listOf(0.5f, 0.6f, 0.7f, 0.8f, 1.0f)
+
+/**
+ * Auf der Dose steht nur "X mg/g": Das ist der Gehalt pro Gramm, nicht pro Pouch.
+ * Pouch-Gewicht antippen → mg pro Pouch wird eingetragen.
+ */
+@Composable
+private fun PerGramHelper(perGramMg: Float, onPickStrength: (Float) -> Unit) {
+    val textColor = MaterialTheme.colorScheme.onPrimaryContainer
+    Column(modifier = Modifier.padding(top = 6.dp)) {
+        Text(
+            "⚠️ Auf der Dose steht ${formatMgValue(perGramMg)} mg/g – das ist pro Gramm, nicht pro Pouch.",
+            style = MaterialTheme.typography.bodySmall,
+            color = textColor
+        )
+        Text(
+            "Wie schwer ist ein Pouch? (steht oft klein auf der Dose, sonst: slim ≈ 0,6 g, normal ≈ 0,8–1 g)",
+            style = MaterialTheme.typography.labelSmall,
+            color = textColor
+        )
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+            items(TYPICAL_POUCH_WEIGHTS) { weight ->
+                val mg = Math.round(perGramMg * weight * 10) / 10f
+                SuggestionChip(
+                    onClick = { onPickStrength(mg) },
+                    label = { Text("${formatMgValue(weight)} g → ${formatMg(mg)}") }
+                )
+            }
         }
     }
 }

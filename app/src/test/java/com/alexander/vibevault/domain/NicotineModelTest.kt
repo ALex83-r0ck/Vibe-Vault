@@ -85,6 +85,47 @@ class NicotineModelTest {
     }
 
     @Test
+    fun `Herausnehmen stoppt die Aufnahme, Kurve bleibt stetig`() {
+        val removed = listOf(Dose(t0, 6.0, removedAt = t0.plusMinutes(20)))
+        val justBefore = model.nicotineMg(removed, t0.plusMinutes(20))
+        val justAfter = model.nicotineMg(removed, t0.plusMinutes(20).plusSeconds(1))
+        assertEquals(justBefore, justAfter, 1e-3)
+        // danach reiner Abbau mit 2 h Halbwertszeit
+        val at1h = model.nicotineMg(removed, t0.plusHours(1))
+        val at3h = model.nicotineMg(removed, t0.plusHours(3))
+        assertEquals(0.5, at3h / at1h, 1e-6)
+        // und weniger als bei ununterbrochener Aufnahme
+        assertTrue(at3h < model.nicotineMg(pouch6, t0.plusHours(3)))
+    }
+
+    @Test
+    fun `aufgenommener Anteil wächst mit der Nutzungsdauer`() {
+        fun share(min: Long) = model.absorbedShare(Dose(t0, 6.0, removedAt = t0.plusMinutes(min)))
+        assertEquals(0.632, share(20), 0.001)
+        assertEquals(0.777, share(30), 0.001)
+        assertEquals(0.950, share(60), 0.001)
+        assertEquals(1.0, model.absorbedShare(Dose(t0, 6.0)), 0.0)
+    }
+
+    @Test
+    fun `Massenbilanz auch bei frühem Herausnehmen`() {
+        val removed = listOf(Dose(t0, 6.0, removedAt = t0.plusMinutes(30)))
+        val kc = kotlin.math.ln(2.0) / params.cotinineHalfLifeH
+        var excreted = 0.0
+        for (m in 0 until 60 * 24 * 20) excreted += kc * model.cotinineMg(removed, t0.plusMinutes(m.toLong())) / 60.0
+        val expected = 0.75 * 0.30 * 6.0 * model.absorbedShare(removed[0]) * NicotineModel.COTININE_PER_NICOTINE_MASS
+        assertEquals(expected, excreted, expected * 0.01)
+    }
+
+    @Test
+    fun `sehr spätes Herausnehmen entspricht ununterbrochener Aufnahme`() {
+        val late = listOf(Dose(t0, 6.0, removedAt = t0.plusHours(10)))
+        val at = t0.plusHours(14)
+        assertEquals(model.nicotineMg(pouch6, at), model.nicotineMg(late, at), 1e-6)
+        assertEquals(model.cotinineMg(pouch6, at), model.cotinineMg(late, at), 1e-4)
+    }
+
+    @Test
     fun `bereits nikotinfrei ergibt null`() {
         val later = t0.plusDays(2)
         assertNull(model.timeWhenBelow(later, 1.0, Duration.ofHours(48), Duration.ofMinutes(5)) {

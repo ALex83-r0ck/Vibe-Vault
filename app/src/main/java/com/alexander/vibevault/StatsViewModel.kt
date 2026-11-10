@@ -3,6 +3,7 @@ package com.alexander.vibevault
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.alexander.vibevault.data.ConsumptionRepository
+import com.alexander.vibevault.data.PouchTimer
 import com.alexander.vibevault.data.SettingsRepository
 import com.alexander.vibevault.data.model.ConsumptionEntry
 import com.alexander.vibevault.domain.Gamification
@@ -28,7 +29,8 @@ data class StatsUiState(
 
 class StatsViewModel(
     private val repository: ConsumptionRepository,
-    settings: SettingsRepository
+    settings: SettingsRepository,
+    private val pouchTimer: PouchTimer
 ) : ViewModel() {
 
     val uiState: StateFlow<StatsUiState> =
@@ -37,6 +39,7 @@ class StatsViewModel(
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatsUiState())
 
     fun deleteEntry(entry: ConsumptionEntry) {
+        pouchTimer.discard(entry.id)
         viewModelScope.launch { repository.deleteEntry(entry) }
     }
 

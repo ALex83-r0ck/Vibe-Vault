@@ -69,6 +69,17 @@ class GamificationTest {
     }
 
     @Test
+    fun `pünktlich herausgenommen zählt nur bekannte Dauern bis zum Ziel`() {
+        val entries = listOf(
+            entry(0, 5f).copy(durationMinutes = 25),
+            entry(0, 5f).copy(durationMinutes = 30),
+            entry(0, 5f).copy(durationMinutes = 31),
+            entry(0, 5f) // unbekannt
+        )
+        assertEquals(2, Gamification.onTimeRemovals(entries, 30))
+    }
+
+    @Test
     fun `Erfolge werden passend freigeschaltet`() {
         val entries = listOf(entry(3, 5f), entry(0, 5f))
         val unlocked = Gamification.achievements(entries, limit, today).filter { it.unlocked }.map { it.id }

@@ -184,7 +184,10 @@ fun EntryCard(entry: ConsumptionEntry, modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    text = entry.timestamp.formatForDisplay(),
+                    text = listOfNotNull(
+                        entry.timestamp.formatForDisplay(),
+                        entry.durationMinutes?.let { "$it min im Mund" }
+                    ).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

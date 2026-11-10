@@ -18,8 +18,16 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.delay
+import java.time.LocalDateTime
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -75,6 +83,11 @@ fun HomeScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var showLimitDialog by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    // Neuer Timer wird oberhalb eingefügt – ohne Scrollen bliebe er außerhalb des Bildes
+    LaunchedEffect(state.activePouch?.entryId) {
+        if (state.activePouch != null) listState.animateScrollToItem(0)
+    }
 
     VibeScaffold(
         title = "VibeVault",
@@ -93,6 +106,7 @@ fun HomeScreen(
         }
     ) { innerPadding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
@@ -100,6 +114,19 @@ fun HomeScreen(
             contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            state.activePouch?.let { active ->
+                item(key = "active_pouch") {
+                    ActivePouchCard(
+                        startedAt = active.startedAt,
+                        targetMinutes = state.pouchTargetMinutes,
+                        label = state.activeEntry?.let { e ->
+                            listOfNotNull(e.brand.ifBlank { null }, formatMg(e.nicotineStrength)).joinToString(" · ")
+                        },
+                        onRemoveNow = viewModel::removePouchNow,
+                        onRemoveAtTarget = viewModel::removePouchAtTarget
+                    )
+                }
+            }
             item {
                 TodayHeroCard(
                     todayMg = state.todayMg,
@@ -187,6 +214,89 @@ fun HomeScreen(
             }
         )
     }
+}
+
+/** Läuft sekundengenau, solange ein Pouch im Mund ist. */
+@Composable
+private fun ActivePouchCard(
+    startedAt: LocalDateTime,
+    targetMinutes: Int,
+    label: String?,
+    onRemoveNow: () -> Unit,
+    onRemoveAtTarget: () -> Unit
+) {
+    val elapsedSeconds by produceState(initialValue = secondsSince(startedAt), startedAt) {
+        while (true) {
+            value = secondsSince(startedAt)
+            delay(1_000L - System.currentTimeMillis() % 1_000L)
+        }
+    }
+    val targetSeconds = targetMinutes * 60L
+    val over = elapsedSeconds > targetSeconds
+    val forgotten = elapsedSeconds > targetSeconds + 30 * 60 // deutlich drüber: vermutlich vergessen zu stoppen
+    val container = if (over) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer
+    val content = if (over) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer
+
+    Card(
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = container, contentColor = content)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                text = if (over) "⏰ Pouch ist über der Zeit" else "⏱️ Pouch drin",
+                style = MaterialTheme.typography.titleMedium
+            )
+            if (label != null) Text(label, style = MaterialTheme.typography.bodySmall)
+            Text(
+                text = formatClock(elapsedSeconds),
+                style = MaterialTheme.typography.displaySmall,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            Text(
+                text = if (over) {
+                    "${formatClock(elapsedSeconds - targetSeconds)} über deinem Ziel von $targetMinutes min"
+                } else {
+                    "Noch ${formatClock(targetSeconds - elapsedSeconds)} bis zu deinem Ziel ($targetMinutes min)"
+                },
+                style = MaterialTheme.typography.bodyMedium
+            )
+            LinearProgressIndicator(
+                progress = { (elapsedSeconds.toFloat() / targetSeconds).coerceIn(0f, 1f) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp)
+                    .height(8.dp),
+                color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary,
+                trackColor = content.copy(alpha = 0.15f),
+                strokeCap = StrokeCap.Round
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onRemoveNow,
+                    colors = if (over) {
+                        ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    } else {
+                        ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                    }
+                ) { Text("Raus genommen") }
+                if (forgotten) {
+                    TextButton(onClick = onRemoveAtTarget) { Text("War nach $targetMinutes min raus") }
+                }
+            }
+        }
+    }
+}
+
+private fun secondsSince(start: LocalDateTime): Long =
+    java.time.Duration.between(start, LocalDateTime.now()).seconds.coerceAtLeast(0)
+
+/** 754 → "12:34", 4000 → "1:06:40" */
+private fun formatClock(totalSeconds: Long): String {
+    val s = totalSeconds.coerceAtLeast(0)
+    val h = s / 3600
+    val m = (s % 3600) / 60
+    val sec = s % 60
+    return if (h > 0) "%d:%02d:%02d".format(h, m, sec) else "%d:%02d".format(m, sec)
 }
 
 @Composable

@@ -25,13 +25,18 @@ class AchievementsViewModel(
 ) : ViewModel() {
 
     val uiState: StateFlow<AchievementsUiState> =
-        combine(repository.getAllEntries(), settings.dailyLimitMg, TimeTicker.days()) { entries, limit, today ->
+        combine(
+            repository.getAllEntries(),
+            settings.dailyLimitMg,
+            settings.pouchTargetMinutes,
+            TimeTicker.days()
+        ) { entries, limit, target, today ->
             val totals = Gamification.dailyTotals(entries)
             AchievementsUiState(
                 currentStreak = Gamification.currentStreak(totals, limit, today),
                 bestStreak = Gamification.bestStreak(totals, limit, today),
                 dailyLimitMg = limit,
-                achievements = Gamification.achievements(entries, limit, today)
+                achievements = Gamification.achievements(entries, limit, today, target)
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AchievementsUiState())
 }
