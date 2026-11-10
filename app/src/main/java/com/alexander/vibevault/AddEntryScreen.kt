@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -17,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import java.time.LocalDateTime
@@ -38,6 +40,8 @@ fun AddEntryScreen(viewModel: AddEntryViewModel, navController: NavController) {
             value = nicotineStrength,
             onValueChange = { nicotineStrength = it },
             label = { Text("Stärke (mg)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -49,7 +53,7 @@ fun AddEntryScreen(viewModel: AddEntryViewModel, navController: NavController) {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = {
-            val strengthValue = nicotineStrength.toFloatOrNull() ?: 0f
+            val strengthValue = nicotineStrength.trim().replace(',', '.').toFloatOrNull() ?: 0f
             viewModel.saveEntry(LocalDateTime.now(), strengthValue, brand)
             navController.popBackStack()
         }) {
