@@ -58,3 +58,21 @@ fun LocalDateTime.relativeTo(now: LocalDateTime): String =
 fun formatKg(value: Double): String = "${mgFormat.format(value)} kg"
 
 fun formatPercent(fraction: Double): String = "${decimal0.format(fraction * 100)} %"
+
+/** "45 min", "1 h 20 min", "2 h". */
+fun formatMinutes(minutes: Long): String {
+    val h = minutes / 60
+    val m = minutes % 60
+    return when {
+        h == 0L -> "$m min"
+        m == 0L -> "$h h"
+        else -> "$h h $m min"
+    }
+}
+
+private val euroFormat = DecimalFormat("#,##0.00", DecimalFormatSymbols(Locale.GERMANY))
+private val euroRound = DecimalFormat("#,##0", DecimalFormatSymbols(Locale.GERMANY))
+
+/** "12,50 €"; ab 100 € ohne Cent. */
+fun formatEuro(value: Double): String =
+    if (value >= 100) "${euroRound.format(value)} €" else "${euroFormat.format(value)} €"

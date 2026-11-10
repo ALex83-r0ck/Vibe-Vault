@@ -15,7 +15,7 @@ import com.alexander.vibevault.data.model.ConsumptionEntry
 import com.alexander.vibevault.data.model.Converters
 import kotlinx.coroutines.flow.Flow
 
-@Database(entities = [ConsumptionEntry::class], version = 2, exportSchema = false)
+@Database(entities = [ConsumptionEntry::class], version = 3, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class VibeVaultDatabase : RoomDatabase() {
     abstract fun consumptionDao(): ConsumptionDao
@@ -31,6 +31,15 @@ abstract class VibeVaultDatabase : RoomDatabase() {
             }
         }
 
+        /** v3: Auslöser, Mundseite und Gefühl danach (alle optional). */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE consumption_entries ADD COLUMN `trigger` TEXT")
+                db.execSQL("ALTER TABLE consumption_entries ADD COLUMN side TEXT")
+                db.execSQL("ALTER TABLE consumption_entries ADD COLUMN feeling TEXT")
+            }
+        }
+
         fun getDatabase(context: Context): VibeVaultDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -38,7 +47,7 @@ abstract class VibeVaultDatabase : RoomDatabase() {
                     VibeVaultDatabase::class.java,
                     "nictrack_database"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { INSTANCE = it }
             }
@@ -56,6 +65,9 @@ interface ConsumptionDao {
 
     @Query("UPDATE consumption_entries SET durationMinutes = :minutes WHERE id = :id")
     suspend fun setDuration(id: Int, minutes: Int)
+
+    @Query("UPDATE consumption_entries SET feeling = :feeling WHERE id = :id")
+    suspend fun setFeeling(id: Int, feeling: String?)
 
     @Query("SELECT * FROM consumption_entries ORDER BY timestamp DESC")
     fun getAll(): Flow<List<ConsumptionEntry>>

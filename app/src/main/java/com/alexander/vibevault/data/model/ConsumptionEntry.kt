@@ -13,5 +13,11 @@ data class ConsumptionEntry(
     val nicotineStrength: Float,
     val brand: String,
     /** Wie lange der Pouch im Mund war; null = unbekannt (ältere Einträge oder Timer läuft noch). */
-    val durationMinutes: Int? = null
+    val durationMinutes: Int? = null,
+    /** Auslöser, Schlüssel aus [com.alexander.vibevault.domain.Trigger]; null = nicht angegeben. */
+    val trigger: String? = null,
+    /** Mundseite: "L" oder "R"; null = nicht angegeben. */
+    val side: String? = null,
+    /** Wie es sich danach angefühlt hat, Schlüssel aus [com.alexander.vibevault.domain.Feeling]. */
+    val feeling: String? = null
 )

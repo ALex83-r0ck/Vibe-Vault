@@ -7,12 +7,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.alexander.vibevault.data.ActivePouch
 import com.alexander.vibevault.data.ConsumptionRepository
+import com.alexander.vibevault.data.Habits
+import com.alexander.vibevault.domain.PkParameters
 import com.alexander.vibevault.data.LabelScanner
 import com.alexander.vibevault.data.PouchTimer
 import com.alexander.vibevault.data.SettingsRepository
 import com.alexander.vibevault.data.model.ConsumptionEntry
+import com.alexander.vibevault.domain.Insights
 import com.alexander.vibevault.domain.LabelParser
+import com.alexander.vibevault.domain.LevelLight
+import com.alexander.vibevault.domain.NicotineModel
+import com.alexander.vibevault.domain.Side
+import com.alexander.vibevault.domain.TimeTicker
+import com.alexander.vibevault.domain.Trigger
+import com.alexander.vibevault.domain.toDoses
 import com.alexander.vibevault.domain.LabelScanResult
 import com.alexander.vibevault.domain.OcrLine
 import com.alexander.vibevault.ui.formatMgValue
@@ -23,6 +33,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -31,6 +42,20 @@ import java.time.LocalDateTime
 
 /** Zuletzt verwendete Kombination aus Marke und Stärke als Schnellauswahl. */
 data class EntrySuggestion(val brand: String, val nicotineStrength: Float)
+
+/** Der Moment vor dem Pouch: wie viel ist noch im Blut, läuft eine Pause? */
+data class EntryContext(
+    val now: LocalDateTime,
+    val ngPerMlNow: Double,
+    val ngPerMlIn30: Double,
+    val light: LevelLight,
+    val pauseEndsAt: LocalDateTime?,
+    val pouchActive: Boolean,
+    val suggestedSide: Side?,
+    val entries: List<ConsumptionEntry>
+)
+
+private data class ModelSettings(val pk: PkParameters, val active: ActivePouch?, val target: Int, val habits: Habits)
 
 sealed interface ScanState {
     data object Idle : ScanState
@@ -45,14 +70,40 @@ class AddEntryViewModel(
     private val settings: SettingsRepository,
     private val scanner: LabelScanner,
     private val pouchTimer: PouchTimer,
+    private val reminders: com.alexander.vibevault.data.Reminders,
     private val appScope: CoroutineScope
 ) : ViewModel() {
 
     var strengthInput by mutableStateOf("")
     var brandInput by mutableStateOf("")
     var timerEnabled by mutableStateOf(true)
+    var trigger by mutableStateOf<Trigger?>(null)
+    var side by mutableStateOf<Side?>(null)
 
     val pouchTargetMinutes: StateFlow<Int> = settings.pouchTargetMinutes
+
+    private val modelSettings = combine(
+        settings.pkParameters, settings.activePouch, settings.pouchTargetMinutes, settings.habits
+    ) { pk, active, target, habits -> ModelSettings(pk, active, target, habits) }
+
+    val entryContext: StateFlow<EntryContext?> = combine(
+        repository.getAllEntries(), modelSettings, TimeTicker.minutes()
+    ) { entries, s, now ->
+        val (pk, active, target, habits) = s
+        val model = NicotineModel(pk)
+        val doses = entries.toDoses(now, active?.entryId, target)
+        val ngNow = model.nicotineNgPerMl(doses, now)
+        EntryContext(
+            now = now,
+            ngPerMlNow = ngNow,
+            ngPerMlIn30 = model.nicotineNgPerMl(doses, now.plusMinutes(30)),
+            light = Insights.light(ngNow),
+            pauseEndsAt = Insights.pauseEndsAt(entries, active?.entryId, habits.pauseMinutes, target, now),
+            pouchActive = active != null,
+            suggestedSide = Insights.suggestedSide(entries),
+            entries = entries
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _scanState = MutableStateFlow<ScanState>(ScanState.Idle)
     val scanState: StateFlow<ScanState> = _scanState.asStateFlow()
@@ -132,11 +183,13 @@ class AddEntryViewModel(
         val entry = ConsumptionEntry(
             timestamp = LocalDateTime.now(),
             nicotineStrength = strength,
-            brand = brandInput.trim()
+            brand = brandInput.trim(),
+            trigger = trigger?.key,
+            side = side?.key
         )
         appScope.launch {
             val id = repository.insertEntry(entry)
-            if (startTimer) pouchTimer.start(id, entry.timestamp)
+            if (startTimer) pouchTimer.start(id, entry.timestamp) else reminders.refresh()
         }
         return true
     }

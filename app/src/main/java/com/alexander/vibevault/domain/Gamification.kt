@@ -78,11 +78,13 @@ object Gamification {
         entries: List<ConsumptionEntry>,
         limitMg: Float,
         today: LocalDate,
-        targetMinutes: Int = 30
+        targetMinutes: Int = 30,
+        pauseMinutes: Int = 45
     ): List<Achievement> {
         val totals = dailyTotals(entries)
         val best = bestStreak(totals, limitMg, today)
         val onTime = onTimeRemovals(entries, targetMinutes)
+        val pausesKept = Insights.pauseStats(entries, pauseMinutes, targetMinutes).kept
 
         fun streakAchievement(id: String, emoji: String, title: String, days: Int) = Achievement(
             id = id,
@@ -118,6 +120,14 @@ object Gamification {
                 description = "10 Pouches innerhalb deiner Zieldauer ($targetMinutes min) rausgenommen",
                 unlocked = onTime >= 10,
                 progress = "${minOf(onTime, 10)}/10"
+            ),
+            Achievement(
+                id = "pause_10",
+                emoji = "🧘",
+                title = "Durchatmen",
+                description = "10-mal nach dem Rausnehmen deine Pause (${pauseMinutes} min) eingehalten",
+                unlocked = pauseMinutes > 0 && pausesKept >= 10,
+                progress = "${minOf(pausesKept, 10)}/10"
             ),
             Achievement(
                 id = "reduced_week",

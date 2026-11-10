@@ -19,5 +19,9 @@ class ConsumptionRepository(private val database: VibeVaultDatabase) {
         database.consumptionDao().setDuration(entryId, minutes)
     }
 
+    suspend fun setFeeling(entryId: Int, feeling: String?) {
+        database.consumptionDao().setFeeling(entryId, feeling)
+    }
+
     fun getAllEntries(): Flow<List<ConsumptionEntry>> = database.consumptionDao().getAll()
 }

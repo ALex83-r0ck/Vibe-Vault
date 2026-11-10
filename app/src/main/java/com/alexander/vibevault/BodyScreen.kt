@@ -23,6 +23,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -130,6 +131,7 @@ fun BodyScreen(viewModel: BodyViewModel, onBack: () -> Unit) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    CotinineExplainer()
                 }
             }
             item {
@@ -336,4 +338,51 @@ private fun ModelDialog(params: PkParameters, onDismiss: () -> Unit, onConfirm: 
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
     )
+}
+
+private val cotinineFacts = listOf(
+    "Was ist Cotinin?" to
+        "Das wichtigste Abbauprodukt von Nikotin. Deine Leber (vor allem das Enzym CYP2A6) baut rund drei " +
+        "Viertel des aufgenommenen Nikotins zu Cotinin um, das dann über die Nieren ausgeschieden wird.",
+    "Merkt man das?" to
+        "Kaum. Cotinin wirkt viel schwächer als Nikotin und ist nicht das, was den Kick oder das Verlangen " +
+        "auslöst. Es ist vor allem eine Spur, die zeigt, wie viel Nikotin in letzter Zeit da war.",
+    "Warum hält es so lange?" to
+        "Nikotin ist nach ca. 2 h zur Hälfte abgebaut, Cotinin erst nach ca. 16 h (je nach Mensch etwa 10–20 h). " +
+        "Deshalb steigt es über den Tag an, wenn du regelmäßig Pouches nimmst, und braucht nach dem letzten " +
+        "Pouch mehrere Tage, bis es wieder unten ist.",
+    "Wofür wird es gemessen?" to
+        "Nikotintests (Speichel, Urin, Blut) suchen fast immer nach Cotinin, z. B. beim Arzt, bei manchen " +
+        "Versicherungen oder Arbeitgebern. Im Blut gelten ca. 3 ng/ml als Grenze zwischen „nimmt kein Nikotin“ " +
+        "und „nimmt Nikotin“. Urintests haben eigene, höhere Grenzwerte.",
+    "Was sagt mir mein Wert?" to
+        "Er ist dein Langzeit-Maß: Der Nikotinspiegel schwankt mit jedem Pouch, Cotinin zeigt eher den " +
+        "Durchschnitt der letzten 2–3 Tage. Wenn du weniger nimmst, sinkt er langsam über Tage – ein guter " +
+        "Beleg, dass sich deine Veränderung wirklich im Körper zeigt.",
+    "Wie genau ist die Zahl?" to
+        "Eine Schätzung aus einem einfachen Modell mit Durchschnittswerten. Echte Werte hängen u. a. von Genen, " +
+        "Leber, Ernährung und Medikamenten ab und können deutlich abweichen. Kein Ersatz für einen Test."
+)
+
+/** Aufklappbare Erklärung: Was bedeutet Cotinin? */
+@Composable
+private fun CotinineExplainer() {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(0.dp)) {
+        Text(if (expanded) "Weniger anzeigen" else "Was bedeutet Cotinin? ›")
+    }
+    if (expanded) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            cotinineFacts.forEach { (question, answer) ->
+                Column {
+                    Text(question, style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        answer,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
 }

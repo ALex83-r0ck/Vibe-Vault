@@ -58,6 +58,19 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.alexander.vibevault.ui.VibeScaffold
+import com.alexander.vibevault.ui.formatNgPerMl
+import com.alexander.vibevault.ui.theme.StatusGood
+import com.alexander.vibevault.ui.theme.StatusOver
+import com.alexander.vibevault.ui.theme.StatusWarning
+import com.alexander.vibevault.domain.Insights
+import com.alexander.vibevault.domain.LevelLight
+import com.alexander.vibevault.domain.Side
+import com.alexander.vibevault.domain.Trigger
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.runtime.LaunchedEffect
+import java.time.Duration
+import java.time.format.DateTimeFormatter
 import com.alexander.vibevault.ui.formatMg
 import com.alexander.vibevault.ui.formatMgValue
 import com.alexander.vibevault.ui.parseMg
@@ -84,6 +97,11 @@ fun AddEntryScreen(viewModel: AddEntryViewModel, onDone: () -> Unit) {
     }
 
     val showStrengthError = triedToSave && parseMg(viewModel.strengthInput) == null
+    val entryContext by viewModel.entryContext.collectAsState()
+    // Seite einmalig vorschlagen: die andere als beim letzten Mal
+    LaunchedEffect(entryContext?.suggestedSide) {
+        if (viewModel.side == null) entryContext?.suggestedSide?.let { viewModel.side = it }
+    }
 
     VibeScaffold(title = "Neuer Eintrag", onBack = onDone) { innerPadding ->
         Column(
@@ -94,6 +112,7 @@ fun AddEntryScreen(viewModel: AddEntryViewModel, onDone: () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            entryContext?.let { MomentCard(it) }
             Card(
                 shape = MaterialTheme.shapes.large,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
@@ -161,6 +180,20 @@ fun AddEntryScreen(viewModel: AddEntryViewModel, onDone: () -> Unit) {
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
+            val enteredStrength = parseMg(viewModel.strengthInput)
+            val badFeelings = remember(enteredStrength, entryContext?.entries) {
+                val ctx = entryContext
+                if (enteredStrength == null || ctx == null) 0
+                else Insights.badFeelingsWith(ctx.entries, enteredStrength, ctx.now.toLocalDate())
+            }
+            if (badFeelings >= 2 && enteredStrength != null) {
+                Text(
+                    "😵‍💫 Mit ${formatMg(enteredStrength)} oder mehr war dir in den letzten 30 Tagen ${badFeelings}× " +
+                        "schwindelig oder übel. Vielleicht eine Stufe leichter?",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
             OutlinedTextField(
                 value = viewModel.brandInput,
                 onValueChange = { viewModel.brandInput = it },
@@ -168,6 +201,12 @@ fun AddEntryScreen(viewModel: AddEntryViewModel, onDone: () -> Unit) {
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
+            )
+            TriggerSection(selected = viewModel.trigger, onSelect = { viewModel.trigger = it })
+            SideSection(
+                selected = viewModel.side,
+                suggested = entryContext?.suggestedSide,
+                onSelect = { viewModel.side = it }
             )
             TimerSection(
                 enabled = viewModel.timerEnabled,
@@ -200,6 +239,96 @@ fun AddEntryScreen(viewModel: AddEntryViewModel, onDone: () -> Unit) {
 }
 
 private val targetOptions = listOf(15, 20, 30, 45, 60)
+
+/** Kurzer Moment zum Innehalten: Blutspiegel-Ampel und laufende Pause. */
+@Composable
+private fun MomentCard(ctx: EntryContext) {
+    val time = remember { DateTimeFormatter.ofPattern("HH:mm") }
+    val container = when (ctx.light) {
+        LevelLight.GREEN -> StatusGood
+        LevelLight.YELLOW -> StatusWarning
+        LevelLight.RED -> StatusOver
+    }
+    Card(
+        shape = MaterialTheme.shapes.large,
+        // Ampelfarben sind hell → immer dunkle Schrift, auch im Dark Mode
+        colors = CardDefaults.cardColors(containerColor = container, contentColor = Color(0xFF1B1B1F))
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                "${ctx.light.emoji} Nikotin im Blut: ${ctx.light.label}",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Text(
+                "Jetzt ${formatNgPerMl(ctx.ngPerMlNow)} · in 30 min ohne neuen Pouch ${formatNgPerMl(ctx.ngPerMlIn30)}",
+                style = MaterialTheme.typography.bodySmall
+            )
+            if (ctx.light != LevelLight.GREEN) {
+                Text(
+                    "Dein Spiegel ist noch nicht unten – brauchst du den Pouch gerade, oder ist es Gewohnheit?",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            ctx.pauseEndsAt?.let { end ->
+                val left = Duration.between(ctx.now, end).toMinutes().coerceAtLeast(1)
+                Text(
+                    "🧘 Deine Pause läuft noch bis ${end.format(time)} (noch $left min). Schaffst du es bis dahin?",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            if (ctx.pouchActive) {
+                Text(
+                    "Gerade ist noch ein Pouch drin – beim Speichern gilt er als jetzt rausgenommen.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+    }
+}
+
+/** Optional: Was ist gerade los? */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TriggerSection(selected: Trigger?, onSelect: (Trigger?) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("Was ist gerade los? (optional)", style = MaterialTheme.typography.titleSmall)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Trigger.entries.forEach { trigger ->
+                FilterChip(
+                    selected = trigger == selected,
+                    onClick = { onSelect(if (trigger == selected) null else trigger) },
+                    label = { Text("${trigger.emoji} ${trigger.label}") }
+                )
+            }
+        }
+    }
+}
+
+/** Mundseite – abwechseln schont das Zahnfleisch. */
+@Composable
+private fun SideSection(selected: Side?, suggested: Side?, onSelect: (Side?) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("Seite im Mund", style = MaterialTheme.typography.titleSmall)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Side.entries.forEach { side ->
+                FilterChip(
+                    selected = side == selected,
+                    onClick = { onSelect(if (side == selected) null else side) },
+                    label = { Text(side.label) }
+                )
+            }
+        }
+        Text(
+            if (suggested != null) {
+                "Vorschlag: ${suggested.label} – letztes Mal war ${suggested.other.label.lowercase()}. " +
+                    "Abwechseln schont das Zahnfleisch."
+            } else {
+                "Abwechseln schont das Zahnfleisch – die App merkt sich die Seite."
+            },
+            style = MaterialTheme.typography.labelSmall
+        )
+    }
+}
 
 @Composable
 private fun TimerSection(

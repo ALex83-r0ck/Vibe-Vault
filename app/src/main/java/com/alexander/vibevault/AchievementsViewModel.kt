@@ -29,14 +29,15 @@ class AchievementsViewModel(
             repository.getAllEntries(),
             settings.dailyLimitMg,
             settings.pouchTargetMinutes,
+            settings.habits,
             TimeTicker.days()
-        ) { entries, limit, target, today ->
+        ) { entries, limit, target, habits, today ->
             val totals = Gamification.dailyTotals(entries)
             AchievementsUiState(
                 currentStreak = Gamification.currentStreak(totals, limit, today),
                 bestStreak = Gamification.bestStreak(totals, limit, today),
                 dailyLimitMg = limit,
-                achievements = Gamification.achievements(entries, limit, today, target)
+                achievements = Gamification.achievements(entries, limit, today, target, habits.pauseMinutes)
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AchievementsUiState())
 }

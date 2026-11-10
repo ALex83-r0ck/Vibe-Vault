@@ -32,7 +32,8 @@ import java.time.format.DateTimeFormatter
 class PouchTimer(
     private val context: Context,
     private val repository: ConsumptionRepository,
-    private val settings: SettingsRepository
+    private val settings: SettingsRepository,
+    private val reminders: Reminders
 ) {
     private val alarmManager = context.getSystemService(AlarmManager::class.java)
 
@@ -43,6 +44,7 @@ class PouchTimer(
         val remindAt = startedAt.plusMinutes(settings.pouchTargetMinutes.value.toLong())
         showRunning(startedAt, remindAt, overdue = false)
         scheduleReminder(remindAt)
+        reminders.refresh()
     }
 
     /** Pouch raus: Dauer speichern, Timer beenden. */
@@ -51,6 +53,7 @@ class PouchTimer(
         val minutes = Duration.between(active.startedAt, removedAt).toMinutes().coerceAtLeast(1)
         repository.setDuration(active.entryId, minutes.toInt())
         clear()
+        reminders.refresh()
     }
 
     /** Timer verwerfen, ohne eine Dauer zu speichern (z. B. Eintrag gelöscht). */
@@ -99,6 +102,18 @@ class PouchTimer(
         val active = settings.activePouch.value ?: return
         val remindAt = active.startedAt.plusMinutes(settings.pouchTargetMinutes.value.toLong())
         if (remindAt.isAfter(LocalDateTime.now())) scheduleReminder(remindAt)
+    }
+
+    /** Nach Neustart/Update: Alarm neu planen bzw. verpasste Erinnerung nachholen. */
+    fun restoreAfterRestart() {
+        val active = settings.activePouch.value ?: return
+        val remindAt = active.startedAt.plusMinutes(settings.pouchTargetMinutes.value.toLong())
+        if (remindAt.isAfter(LocalDateTime.now())) {
+            showRunning(active.startedAt, remindAt, overdue = false)
+            scheduleReminder(remindAt)
+        } else {
+            onReminderDue()
+        }
     }
 
     private fun scheduleReminder(at: LocalDateTime) {

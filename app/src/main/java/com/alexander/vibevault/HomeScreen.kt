@@ -18,6 +18,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Settings
+import com.alexander.vibevault.domain.Feeling
+import com.alexander.vibevault.domain.Insights
+import com.alexander.vibevault.domain.SleepWindow
+import java.time.Duration
+import java.time.format.DateTimeFormatter
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -77,7 +83,8 @@ fun HomeScreen(
     onAddEntry: () -> Unit,
     onOpenStats: () -> Unit,
     onOpenAchievements: () -> Unit,
-    onOpenBody: () -> Unit
+    onOpenBody: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -95,6 +102,9 @@ fun HomeScreen(
         actions = {
             IconButton(onClick = onOpenAchievements) {
                 Icon(Icons.Filled.Star, contentDescription = "Erfolge")
+            }
+            IconButton(onClick = onOpenSettings) {
+                Icon(Icons.Filled.Settings, contentDescription = "Einstellungen")
             }
         },
         floatingActionButton = {
@@ -126,6 +136,20 @@ fun HomeScreen(
                         onRemoveAtTarget = viewModel::removePouchAtTarget
                     )
                 }
+            }
+            state.feelingCandidate?.let { entry ->
+                item(key = "feeling_${entry.id}") {
+                    FeelingCard(
+                        onPick = { viewModel.setFeeling(entry, it) },
+                        onDismiss = { viewModel.dismissFeeling(entry) }
+                    )
+                }
+            }
+            state.pauseEndsAt?.let { end ->
+                item(key = "pause") { PauseCard(now = state.now, endsAt = end, pauseMinutes = state.pauseMinutes) }
+            }
+            state.sleepWindow?.let { window ->
+                item(key = "sleep") { SleepCard(window = window, now = state.now) }
             }
             item {
                 TodayHeroCard(
@@ -406,4 +430,83 @@ private fun DailyLimitDialog(currentLimit: Float, onDismiss: () -> Unit, onConfi
             TextButton(onClick = onDismiss) { Text("Abbrechen") }
         }
     )
+}
+
+private val hhmm = DateTimeFormatter.ofPattern("HH:mm")
+
+/** Nach dem Rausnehmen: kurz festhalten, wie es war. */
+@Composable
+private fun FeelingCard(onPick: (Feeling) -> Unit, onDismiss: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Wie war der letzte Pouch?", style = MaterialTheme.typography.titleMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Feeling.entries.forEach { feeling ->
+                    FilledTonalButton(onClick = { onPick(feeling) }, contentPadding = PaddingValues(horizontal = 12.dp)) {
+                        Text("${feeling.emoji} ${feeling.label}")
+                    }
+                }
+            }
+            TextButton(onClick = onDismiss, contentPadding = PaddingValues(0.dp)) { Text("Überspringen") }
+        }
+    }
+}
+
+/** Pause nach dem Rausnehmen – nichts wird gesperrt, nur sichtbar gemacht. */
+@Composable
+private fun PauseCard(now: LocalDateTime, endsAt: LocalDateTime, pauseMinutes: Int) {
+    val left = Duration.between(now, endsAt).toMinutes().coerceAtLeast(1)
+    val progress = (1f - left.toFloat() / pauseMinutes).coerceIn(0f, 1f)
+    Card(
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("🧘 Pause läuft", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Nächster frühestens ${endsAt.format(hhmm)} – noch $left min.",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth().height(6.dp),
+                strokeCap = StrokeCap.Round
+            )
+            Text(
+                "Lust kommt in Wellen und ist meist nach wenigen Minuten vorbei. Ein Glas Wasser hilft.",
+                style = MaterialTheme.typography.labelSmall
+            )
+        }
+    }
+}
+
+/** Abends: Was heißt das fürs Einschlafen? */
+@Composable
+private fun SleepCard(window: SleepWindow, now: LocalDateTime) {
+    Card(
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("🌙 Schlaf-Fenster", style = MaterialTheme.typography.titleMedium)
+            val atBed = window.levelAtBedtime
+            Text(
+                "Um ${window.bedtime.format(hhmm)} wärst du bei ${com.alexander.vibevault.ui.formatNgPerMl(atBed)}" +
+                    if (atBed <= Insights.SLEEP_OK_NG_PER_ML) " – gut zum Einschlafen." else " – das kann den Schlaf stören.",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                when (val last = window.lastPouchAt) {
+                    null -> "Ein weiterer Pouch (${formatMg(window.typicalStrengthMg)}) wäre bis zum Schlafen nicht mehr abgebaut."
+                    else -> "Letzter Pouch (${formatMg(window.typicalStrengthMg)}) für guten Schlaf: bis ca. ${last.format(hhmm)}" +
+                        if (Duration.between(now, last).toMinutes() < 60) " – also bald." else "."
+                },
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+    }
 }
