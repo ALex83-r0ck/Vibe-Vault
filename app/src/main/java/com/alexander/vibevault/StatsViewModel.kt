@@ -6,6 +6,7 @@ import com.alexander.vibevault.data.ConsumptionRepository
 import com.alexander.vibevault.data.SettingsRepository
 import com.alexander.vibevault.data.model.ConsumptionEntry
 import com.alexander.vibevault.domain.Gamification
+import com.alexander.vibevault.domain.TimeTicker
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -15,7 +16,7 @@ import java.time.LocalDate
 
 data class PeriodSummary(val count: Int = 0, val totalMg: Float = 0f)
 
-data class DayBar(val date: LocalDate, val totalMg: Float)
+data class DayBar(val date: LocalDate, val totalMg: Float, val isToday: Boolean)
 
 data class StatsUiState(
     val today: PeriodSummary = PeriodSummary(),
@@ -31,8 +32,8 @@ class StatsViewModel(
 ) : ViewModel() {
 
     val uiState: StateFlow<StatsUiState> =
-        combine(repository.getAllEntries(), settings.dailyLimitMg) { entries, limit ->
-            buildState(entries, limit, LocalDate.now())
+        combine(repository.getAllEntries(), settings.dailyLimitMg, TimeTicker.days()) { entries, limit, today ->
+            buildState(entries, limit, today)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatsUiState())
 
     fun deleteEntry(entry: ConsumptionEntry) {
@@ -51,7 +52,7 @@ class StatsViewModel(
             last7Days = entries.filter { !it.timestamp.toLocalDate().isBefore(weekStart) }.summarize(),
             week = (0L..6L).map { offset ->
                 val day = weekStart.plusDays(offset)
-                DayBar(day, totals[day] ?: 0f)
+                DayBar(day, totals[day] ?: 0f, isToday = day == today)
             },
             dailyLimitMg = limit,
             entries = entries

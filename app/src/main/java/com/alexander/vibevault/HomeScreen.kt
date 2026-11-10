@@ -51,7 +51,9 @@ import com.alexander.vibevault.ui.SectionHeader
 import com.alexander.vibevault.ui.StatTile
 import com.alexander.vibevault.ui.SwipeToDelete
 import com.alexander.vibevault.ui.VibeScaffold
+import com.alexander.vibevault.ui.formatBodyMg
 import com.alexander.vibevault.ui.formatMg
+import com.alexander.vibevault.ui.relativeTo
 import com.alexander.vibevault.ui.formatMgValue
 import com.alexander.vibevault.ui.parseMg
 import com.alexander.vibevault.ui.pluralDays
@@ -66,7 +68,8 @@ fun HomeScreen(
     viewModel: HomeViewModel,
     onAddEntry: () -> Unit,
     onOpenStats: () -> Unit,
-    onOpenAchievements: () -> Unit
+    onOpenAchievements: () -> Unit,
+    onOpenBody: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -123,6 +126,19 @@ fun HomeScreen(
                         onClick = onOpenAchievements
                     )
                 }
+            }
+            item {
+                StatTile(
+                    emoji = "🧬",
+                    value = "${formatBodyMg(state.body.nicotineMg)} im Körper",
+                    label = state.body.nicotineFreeAt
+                        ?.let { "Nikotinfrei ab ca. ${it.relativeTo(state.now)} · Details zum Abbau" }
+                        ?: "Praktisch nikotinfrei 🌿 · Details zum Abbau",
+                    modifier = Modifier.fillMaxWidth(),
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    onClick = onOpenBody
+                )
             }
             item {
                 SectionHeader("Letzte Einträge") {

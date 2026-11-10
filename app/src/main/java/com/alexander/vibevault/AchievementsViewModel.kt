@@ -6,11 +6,11 @@ import com.alexander.vibevault.data.ConsumptionRepository
 import com.alexander.vibevault.data.SettingsRepository
 import com.alexander.vibevault.domain.Achievement
 import com.alexander.vibevault.domain.Gamification
+import com.alexander.vibevault.domain.TimeTicker
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import java.time.LocalDate
 
 data class AchievementsUiState(
     val currentStreak: Int = 0,
@@ -25,8 +25,7 @@ class AchievementsViewModel(
 ) : ViewModel() {
 
     val uiState: StateFlow<AchievementsUiState> =
-        combine(repository.getAllEntries(), settings.dailyLimitMg) { entries, limit ->
-            val today = LocalDate.now()
+        combine(repository.getAllEntries(), settings.dailyLimitMg, TimeTicker.days()) { entries, limit, today ->
             val totals = Gamification.dailyTotals(entries)
             AchievementsUiState(
                 currentStreak = Gamification.currentStreak(totals, limit, today),

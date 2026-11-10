@@ -52,7 +52,6 @@ import com.alexander.vibevault.DayBar
 import com.alexander.vibevault.data.model.ConsumptionEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 
 /** Gemeinsames Grundgerüst: Top-Bar mit optionalem Zurück-Pfeil, Aktionen, FAB und Snackbar. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -249,7 +248,6 @@ fun SectionHeader(title: String, modifier: Modifier = Modifier, trailing: @Compo
 fun WeekBarChart(bars: List<DayBar>, limitMg: Float, modifier: Modifier = Modifier) {
     val chartHeight = 140.dp
     val maxValue = maxOf(bars.maxOfOrNull { it.totalMg } ?: 0f, limitMg).coerceAtLeast(1f)
-    val today = LocalDate.now()
 
     Column(modifier = modifier.fillMaxWidth()) {
         Box(
@@ -295,7 +293,7 @@ fun WeekBarChart(bars: List<DayBar>, limitMg: Float, modifier: Modifier = Modifi
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             bars.forEach { bar ->
-                val isToday = bar.date == today
+                val isToday = bar.isToday
                 Text(
                     text = if (isToday) "Heute" else bar.date.dayOfWeek.shortGerman(),
                     modifier = Modifier.weight(1f),

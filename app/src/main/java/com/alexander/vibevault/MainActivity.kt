@@ -16,6 +16,7 @@ object Routes {
     const val ADD_ENTRY = "addEntry"
     const val STATS = "stats"
     const val ACHIEVEMENTS = "achievements"
+    const val BODY = "body"
 }
 
 class MainActivity : ComponentActivity() {
@@ -33,7 +34,14 @@ class MainActivity : ComponentActivity() {
                             viewModel = viewModel<HomeViewModel>(factory = factory),
                             onAddEntry = { navController.navigate(Routes.ADD_ENTRY) },
                             onOpenStats = { navController.navigate(Routes.STATS) },
-                            onOpenAchievements = { navController.navigate(Routes.ACHIEVEMENTS) }
+                            onOpenAchievements = { navController.navigate(Routes.ACHIEVEMENTS) },
+                            onOpenBody = { navController.navigate(Routes.BODY) }
+                        )
+                    }
+                    composable(Routes.BODY) {
+                        BodyScreen(
+                            viewModel = viewModel<BodyViewModel>(factory = factory),
+                            onBack = { navController.navigateUp() }
                         )
                     }
                     composable(Routes.ADD_ENTRY) {
