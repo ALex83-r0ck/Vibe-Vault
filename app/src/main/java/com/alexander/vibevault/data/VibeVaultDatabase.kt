@@ -6,6 +6,7 @@ import androidx.room.TypeConverters
 import com.alexander.vibevault.data.model.ConsumptionEntry
 import androidx.room.Room
 import androidx.room.Dao
+import androidx.room.Delete
 import android.content.Context
 import androidx.room.Insert
 import androidx.room.Query
@@ -38,6 +39,9 @@ abstract class VibeVaultDatabase : RoomDatabase() {
 interface ConsumptionDao {
     @Insert
     suspend fun insert(entry: ConsumptionEntry)
+
+    @Delete
+    suspend fun delete(entry: ConsumptionEntry)
 
     @Query("SELECT * FROM consumption_entries ORDER BY timestamp DESC")
     fun getAll(): kotlinx.coroutines.flow.Flow<List<ConsumptionEntry>>

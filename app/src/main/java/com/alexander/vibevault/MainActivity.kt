@@ -3,6 +3,7 @@ package com.alexander.vibevault
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -14,10 +15,12 @@ object Routes {
     const val HOME = "home"
     const val ADD_ENTRY = "addEntry"
     const val STATS = "stats"
+    const val ACHIEVEMENTS = "achievements"
 }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         AppModule.initialize(applicationContext)
         val factory = AppModule.provideViewModelFactory()
@@ -29,7 +32,8 @@ class MainActivity : ComponentActivity() {
                         HomeScreen(
                             viewModel = viewModel<HomeViewModel>(factory = factory),
                             onAddEntry = { navController.navigate(Routes.ADD_ENTRY) },
-                            onOpenStats = { navController.navigate(Routes.STATS) }
+                            onOpenStats = { navController.navigate(Routes.STATS) },
+                            onOpenAchievements = { navController.navigate(Routes.ACHIEVEMENTS) }
                         )
                     }
                     composable(Routes.ADD_ENTRY) {
@@ -41,6 +45,12 @@ class MainActivity : ComponentActivity() {
                     composable(Routes.STATS) {
                         StatsScreen(
                             viewModel = viewModel<StatsViewModel>(factory = factory),
+                            onBack = { navController.navigateUp() }
+                        )
+                    }
+                    composable(Routes.ACHIEVEMENTS) {
+                        AchievementsScreen(
+                            viewModel = viewModel<AchievementsViewModel>(factory = factory),
                             onBack = { navController.navigateUp() }
                         )
                     }

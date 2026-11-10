@@ -1,36 +1,35 @@
 package com.alexander.vibevault.di
 
 import android.content.Context
-import com.alexander.vibevault.data.ConsumptionRepository
-import com.alexander.vibevault.data.VibeVaultDatabase
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.alexander.vibevault.AchievementsViewModel
+import com.alexander.vibevault.AddEntryViewModel
+import com.alexander.vibevault.HomeViewModel
+import com.alexander.vibevault.StatsViewModel
+import com.alexander.vibevault.data.ConsumptionRepository
+import com.alexander.vibevault.data.SettingsRepository
+import com.alexander.vibevault.data.VibeVaultDatabase
 
 object AppModule {
-    private lateinit var database: VibeVaultDatabase
     private lateinit var repository: ConsumptionRepository
+    private lateinit var settings: SettingsRepository
 
+    /** Idempotent: wird bei jedem Activity-Start aufgerufen, legt die Instanzen aber nur einmal an. */
     fun initialize(context: Context) {
-        database = VibeVaultDatabase.getDatabase(context)
-        repository = ConsumptionRepository(database)
+        if (::repository.isInitialized) return
+        repository = ConsumptionRepository(VibeVaultDatabase.getDatabase(context))
+        settings = SettingsRepository(context.applicationContext)
     }
-
-    fun provideRepository(): ConsumptionRepository = repository
-    fun provideDatabase(): VibeVaultDatabase = database
 
     fun provideViewModelFactory(): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return when {
-                modelClass.isAssignableFrom(com.alexander.vibevault.HomeViewModel::class.java) ->
-                    com.alexander.vibevault.HomeViewModel(repository) as T
-                modelClass.isAssignableFrom(com.alexander.vibevault.AddEntryViewModel::class.java) ->
-                    com.alexander.vibevault.AddEntryViewModel(repository) as T
-                modelClass.isAssignableFrom(com.alexander.vibevault.StatsViewModel::class.java) ->
-                    com.alexander.vibevault.StatsViewModel(repository) as T
-                else -> throw IllegalArgumentException("Unknown ViewModel class")
-            }
-        }
+        override fun <T : ViewModel> create(modelClass: Class<T>): T = when (modelClass) {
+            HomeViewModel::class.java -> HomeViewModel(repository, settings)
+            AddEntryViewModel::class.java -> AddEntryViewModel(repository)
+            StatsViewModel::class.java -> StatsViewModel(repository, settings)
+            AchievementsViewModel::class.java -> AchievementsViewModel(repository, settings)
+            else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+        } as T
     }
 }
