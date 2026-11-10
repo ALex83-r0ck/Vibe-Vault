@@ -1,7 +1,5 @@
 package com.alexander.vibevault
 
-import android.os.Bundle
-import android.view.View
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,34 +17,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.viewModels
-import androidx.navigation.fragment.findNavController
-import com.alexander.vibevault.ui.theme.VibeVaultTheme
+import androidx.navigation.NavController
 import java.time.LocalDateTime
 
-class AddEntryFragment : Fragment() {
-    private val viewModel: AddEntryViewModel by viewModels()
-
-    override fun onCreateView(
-        inflater: android.view.LayoutInflater,
-        container: android.view.ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        return ComposeView(requireContext()).apply {
-            setContent {
-                VibeVaultTheme {
-                    AddEntryScreen(viewModel = viewModel, navController = findNavController())
-                }
-            }
-        }
-    }
-}
-
 @Composable
-fun AddEntryScreen(viewModel: AddEntryViewModel, navController: androidx.navigation.NavController) {
+fun AddEntryScreen(viewModel: AddEntryViewModel, navController: NavController) {
     var nicotineStrength by remember { mutableStateOf("") }
     var brand by remember { mutableStateOf("") }
 

@@ -39,6 +39,6 @@ interface ConsumptionDao {
     @Insert
     suspend fun insert(entry: ConsumptionEntry)
 
-    @Query("SELECT * FROM consumption_entries")
-    suspend fun getAll(): List<ConsumptionEntry>
+    @Query("SELECT * FROM consumption_entries ORDER BY timestamp DESC")
+    fun getAll(): kotlinx.coroutines.flow.Flow<List<ConsumptionEntry>>
 }

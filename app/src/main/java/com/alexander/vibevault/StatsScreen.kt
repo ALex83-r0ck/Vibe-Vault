@@ -1,7 +1,5 @@
 package com.alexander.vibevault
 
-import android.os.Bundle
-import android.view.View
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,29 +14,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.viewModels
-import com.alexander.vibevault.ui.theme.VibeVaultTheme
-
-class StatsFragment : Fragment() {
-    private val viewModel: StatsViewModel by viewModels()
-
-    override fun onCreateView(
-        inflater: android.view.LayoutInflater,
-        container: android.view.ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        return ComposeView(requireContext()).apply {
-            setContent {
-                VibeVaultTheme {
-                    StatsScreen(viewModel = viewModel)
-                }
-            }
-        }
-    }
-}
 
 @Composable
 fun StatsScreen(viewModel: StatsViewModel) {
